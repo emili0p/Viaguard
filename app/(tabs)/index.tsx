@@ -1,131 +1,170 @@
-import React, { useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Accelerometer } from 'expo-sensors';
 import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
+import MapComponent from '@/components/Mapa';
 
-// Importación condicional de react-native-maps
-let MapView: any = null;
-let Marker: any = null;
-let Region: any = null;
+export default function App() {
+  const [accelData, setAccelData] = useState({ x: 0, y: 0, z: 0 });
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default;
-    Marker = Maps.Marker;
-    Region = Maps.Region;
-  } catch (error) {
-    console.log('react-native-maps no disponible');
-  }
-}
+  // Acelerómetro
+  useEffect(() => {
+    const subscription = Accelerometer.addListener((data) => {
+      setAccelData(data);
+    });
 
-interface MapComponentProps {
-  location: Location.LocationObject | null;
-  height?: number;
-}
+    Accelerometer.setUpdateInterval(500);
 
-const MapComponent: React.FC<MapComponentProps> = ({ 
-  location, 
-  height = 300
-}) => {
-  const mapRef = useRef<any>(null);
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
-  // Si es web, mostrar mensaje en lugar del mapa
-  if (Platform.OS === 'web') {
-    return (
-      <View style={[styles.container, { height }]}>
-        <View style={styles.placeholder}>
-          <Ionicons name="globe-outline" size={40} color="#666" />
-          <Text style={styles.placeholderText}>
-            🗺️ Mapa no disponible en versión web
-          </Text>
-          <Text style={styles.webText}>
-            Ejecuta en dispositivo iOS/Android para ver el mapa
-          </Text>
-        </View>
-      </View>
-    );
-  }
+  // Ubicación
+  useEffect(() => {
+    (async () => {
+      try {
+        setIsLoading(true);
+        
+        // 1. Solicitar permisos
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Permiso de ubicación denegado');
+          setIsLoading(false);
+          return;
+        }
 
-  // Si react-native-maps no está disponible
-  if (!MapView || !Marker) {
-    return (
-      <View style={[styles.container, { height }]}>
-        <View style={styles.placeholder}>
-          <Ionicons name="alert-circle-outline" size={40} color="#e74c3c" />
-          <Text style={styles.placeholderText}>
-            ❌ react-native-maps no disponible
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  if (!location) {
-    return (
-      <View style={[styles.container, { height }]}>
-        <View style={styles.placeholder}>
-          <Ionicons name="map-outline" size={40} color="#666" />
-          <Text style={styles.placeholderText}>Cargando mapa...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  const { latitude, longitude } = location.coords;
-
-  const initialRegion: any = {
-    latitude,
-    longitude,
-    latitudeDelta: 0.0052,
-    longitudeDelta: 0.0051,
-  };
-
-  const centerMap = () => {
-    if (mapRef.current) {
-      mapRef.current.animateToRegion(initialRegion, 1000);
-    }
-  };
+        // 2. Obtener la ubicación actual
+        let loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Best,
+          timeout: 15000
+        });
+        
+        setLocation(loc);
+        setErrorMsg('');
+        
+      } catch (error) {
+        console.log('Error obteniendo ubicación:', error);
+        setErrorMsg('Error al obtener la ubicación');
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   return (
-    <View style={[styles.container, { height }]}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={initialRegion}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        zoomEnabled={true}
-        scrollEnabled={true}
-      >
-        <Marker
-          coordinate={{
-            latitude,
-            longitude,
-          }}
-          title="Ubicación actual"
-          description={`Lat: ${latitude.toFixed(6)}\nLon: ${longitude.toFixed(6)}`}
-          pinColor="#007AFF"
-        />
-      </MapView>
+    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
+      <View style={styles.container}>
+        <Text style={styles.header}>📱 Sensor & Mapa App</Text>
+        
+        {/* Sección del Acelerómetro */}
+        <View style={styles.section}>
+          <Text style={styles.title}>Datos del Acelerómetro:</Text>
+          <View style={styles.dataBox}>
+            <Text style={styles.dataText}>X: {accelData.x.toFixed(4)}</Text>
+            <Text style={styles.dataText}>Y: {accelData.y.toFixed(4)}</Text>
+            <Text style={styles.dataText}>Z: {accelData.z.toFixed(4)}</Text>
+          </View>
+        </View>
 
-      <View style={styles.controls}>
-        <TouchableOpacity style={styles.controlButton} onPress={centerMap}>
-          <Ionicons name="locate" size={20} color="#007AFF" />
-        </TouchableOpacity>
+        {/* Sección de Ubicación */}
+        <View style={styles.section}>
+          <Text style={styles.title}>📍 Coordenadas:</Text>
+          <View style={styles.dataBox}>
+            {isLoading ? (
+              <Text style={styles.loadingText}>Obteniendo ubicación...</Text>
+            ) : location ? (
+              <View>
+                <Text style={styles.coordinateText}>
+                  Latitud: {location.coords.latitude.toFixed(6)}
+                </Text>
+                <Text style={styles.coordinateText}>
+                  Longitud: {location.coords.longitude.toFixed(6)}
+                </Text>
+                <Text style={styles.accuracyText}>
+                  Precisión: ±{location.coords.accuracy?.toFixed(2)} metros
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.errorText}>
+                {errorMsg || 'No se pudo obtener la ubicación'}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Componente del Mapa */}
+        {location && (
+          <View style={styles.section}>
+            <Text style={styles.title}>🗺️ Mapa de Ubicación:</Text>
+            <MapComponent 
+              location={location} 
+              height={350}
+            />
+          </View>
+        )}
+
+        {/* Información adicional */}
+        <View style={styles.infoBox}>
+          <Text style={styles.infoText}>
+            💡 Mueve el dispositivo para ver cambios en el acelerómetro
+          </Text>
+          <Text style={styles.infoText}>
+            🗺️ El mapa muestra tu ubicación actual en tiempo real
+          </Text>
+          {errorMsg && (
+            <Text style={styles.errorInfoText}>
+              ⚠️ {errorMsg}
+            </Text>
+          )}
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
-};
+}
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  contentContainer: {
+    paddingBottom: 30,
+  },
   container: {
+    flex: 1,
+    padding: 20,
+    alignItems: 'center',
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  section: {
     width: '100%',
-    marginVertical: 15,
-    borderRadius: 15,
-    overflow: 'hidden',
+    marginBottom: 25,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  dataBox: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#ddd',
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -135,49 +174,52 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    gap: 10,
-    padding: 20,
-  },
-  placeholderText: {
-    color: '#6c757d',
+  dataText: {
     fontSize: 16,
+    marginBottom: 5,
+    color: '#34495e',
+  },
+  coordinateText: {
+    fontSize: 16,
+    marginBottom: 5,
+    color: '#2980b9',
     fontWeight: '500',
-    textAlign: 'center',
   },
-  webText: {
-    color: '#3498db',
+  accuracyText: {
     fontSize: 14,
-    textAlign: 'center',
+    color: '#7f8c8d',
     marginTop: 5,
+    fontStyle: 'italic',
   },
-  controls: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    gap: 8,
+  loadingText: {
+    fontSize: 16,
+    color: '#f39c12',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
-  controlButton: {
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+  errorText: {
+    fontSize: 16,
+    color: '#e74c3c',
+    textAlign: 'center',
+  },
+  infoBox: {
+    backgroundColor: '#e8f4f8',
+    padding: 15,
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3498db',
+    width: '100%',
+    marginTop: 10,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    marginBottom: 5,
+  },
+  errorInfoText: {
+    fontSize: 14,
+    color: '#e74c3c',
+    marginTop: 10,
+    fontWeight: '500',
   },
 });
-
-export default MapComponent;
