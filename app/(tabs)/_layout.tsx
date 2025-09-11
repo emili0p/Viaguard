@@ -2,7 +2,6 @@ import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, Tabs } from 'expo-router';
 import { Pressable } from 'react-native';
-
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
@@ -34,7 +33,7 @@ export default function TabLayout() {
       screenOptions={{
         tabBarStyle: tabBarOptions,
         tabBarActiveTintColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF',
-        tabBarInactiveTintColor: colorScheme === 'dark' ? '#8E8E93' : '#8E8E93',
+        tabBarInactiveTintColor: '#8E8E93',
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
@@ -69,20 +68,24 @@ export default function TabLayout() {
           ),
         }}
       />
-      
+
       <Tabs.Screen
-        name="Emergencia"
+        name="Emergencia" // 👈 archivo debe ser app/emergencia.tsx
         options={{
           title: 'Emergencia',
-          tabBarIcon: ({ color }) => <TabBarIcon name="exclamation-triangle" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="exclamation-triangle" color={color} />
+          ),
         }}
       />
-      
+
       <Tabs.Screen
-        name="configuracion"
+        name="configuracion" // 👈 archivo debe ser app/configuracion.tsx
         options={{
           title: 'Configuración',
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="cog" color={color} />
+          ),
         }}
       />
     </Tabs>

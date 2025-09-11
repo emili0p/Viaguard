@@ -170,6 +170,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 5,
+    position: 'relative',  // 👈 clave
+    zIndex: 0,             // 👈 clave
   },
   mapHeader: {
     flexDirection: 'row',
@@ -263,7 +265,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '45%',
     left: '48%',
-    zIndex: 10,
   },
   markerPulse: {
     position: 'absolute',
