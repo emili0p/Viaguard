@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Button } from 'react-native';
 import { Accelerometer } from 'expo-sensors';
 import * as Location from 'expo-location';
 import MapComponent from '@/components/Mapa';
@@ -9,11 +9,27 @@ export default function App() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isAccident, setIsAccident] = useState(false);
+
+  // URL del backend (puede ser localhost o IP de tu laptop en la red local)
+  //const BACKEND_URL = "http://10.0.2.2:3000/api/mobile/sensor"; 
+  // Nota: en Android Emulator se usa 10.0.2.2 en lugar de localhost
+  const BACKEND_URL = "http://172.16.156.109:3000/api/mobile/sensor"; // Cambia por la IP de tu laptop
 
   // Acelerómetro
   useEffect(() => {
     const subscription = Accelerometer.addListener((data) => {
       setAccelData(data);
+
+      // Calcular magnitud del vector
+      const magnitude = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
+
+      // Detectar umbral (ejemplo: > 2.5 g)
+      if (magnitude > 2.5) {
+        console.log("🚨 Posible accidente detectado!");
+        setIsAccident(true);
+        sendData("accidente", data);
+      }
     });
 
     Accelerometer.setUpdateInterval(500);
@@ -28,8 +44,6 @@ export default function App() {
     (async () => {
       try {
         setIsLoading(true);
-        
-        // 1. Solicitar permisos
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           setErrorMsg('Permiso de ubicación denegado');
@@ -37,15 +51,12 @@ export default function App() {
           return;
         }
 
-        // 2. Obtener la ubicación actual
         let loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Best,
-          timeout: 15000
+          accuracy: Location.Accuracy.BestForNavigation,
         });
         
         setLocation(loc);
         setErrorMsg('');
-        
       } catch (error) {
         console.log('Error obteniendo ubicación:', error);
         setErrorMsg('Error al obtener la ubicación');
@@ -54,6 +65,75 @@ export default function App() {
       }
     })();
   }, []);
+
+// Función para enviar datos al backend - Versión compatible
+const sendData = async (evento: string, accel?: any) => {
+  try {
+    // Formato compatible con tu endpoint /api/mobile/sensor
+    const payload = {
+      x: accel?.x || accelData.x,
+      y: accel?.y || accelData.y,
+      z: accel?.z || accelData.z,
+      deviceId: "react-native-app", // Agrega deviceId
+      evento // Puedes usar esto como "activity"
+    };
+
+    console.log("📤 Enviando datos:", payload);
+
+    const response = await fetch(BACKEND_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    console.log("✅ Respuesta del servidor:", result);
+
+  } catch (err) {
+    console.log("❌ Error enviando datos:", err);
+  }
+};
+
+// O si quieres enviar datos completos al endpoint /api/sensor-data:
+const sendCompleteData = async (evento: string, accel?: any) => {
+  try {
+    const payload = {
+      deviceId: "react-native-app",
+      acceleration: {
+        x: accel?.x || accelData.x,
+        y: accel?.y || accelData.y,
+        z: accel?.z || accelData.z
+      },
+      gyroscope: { x: 0, y: 0, z: 0 }, // Valores por defecto
+      magnitude: Math.sqrt(
+        (accel?.x || accelData.x) ** 2 +
+        (accel?.y || accelData.y) ** 2 +
+        (accel?.z || accelData.z) ** 2
+      ),
+      activity: evento, // "accidente", "normal", etc.
+      vibrationLevel: "medium",
+      location: location?.coords ? {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude
+      } : { latitude: 0, longitude: 0 },
+      batteryLevel: 100 // Puedes obtener la batería real si quieres
+    };
+
+    console.log("📤 Enviando datos completos:", payload);
+
+    const response = await fetch("http://192.168.1.X:3000/api/sensor-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    console.log("✅ Respuesta del servidor:", result);
+
+  } catch (err) {
+    console.log("❌ Error enviando datos:", err);
+  }
+};
 
   return (
     <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
@@ -70,7 +150,15 @@ export default function App() {
           </View>
         </View>
 
-        {/* Sección de Ubicación */}
+        {/* Estado de accidente */}
+        <View style={styles.section}>
+          <Text style={[styles.title, { color: isAccident ? 'red' : 'green' }]}>
+            Estado: {isAccident ? "🚨 Accidente detectado" : "✅ Normal"}
+          </Text>
+          <Button title="Simular Accidente" onPress={() => sendData("simulado")} />
+        </View>
+
+        {/* Ubicación */}
         <View style={styles.section}>
           <Text style={styles.title}>📍 Coordenadas:</Text>
           <View style={styles.dataBox}>
@@ -85,7 +173,7 @@ export default function App() {
                   Longitud: {location.coords.longitude.toFixed(6)}
                 </Text>
                 <Text style={styles.accuracyText}>
-                  Precisión: ±{location.coords.accuracy?.toFixed(2)} metros
+                  Precisión: ±{location.coords.accuracy?.toFixed(2)} m
                 </Text>
               </View>
             ) : (
@@ -96,31 +184,13 @@ export default function App() {
           </View>
         </View>
 
-        {/* Componente del Mapa */}
+        {/* Mapa */}
         {location && (
           <View style={styles.section}>
             <Text style={styles.title}>🗺️ Mapa de Ubicación:</Text>
-            <MapComponent 
-              location={location} 
-              height={350}
-            />
+            <MapComponent location={location} height={350} />
           </View>
         )}
-
-        {/* Información adicional */}
-        <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            💡 Mueve el dispositivo para ver cambios en el acelerómetro
-          </Text>
-          <Text style={styles.infoText}>
-            🗺️ El mapa muestra tu ubicación actual en tiempo real
-          </Text>
-          {errorMsg && (
-            <Text style={styles.errorInfoText}>
-              ⚠️ {errorMsg}
-            </Text>
-          )}
-        </View>
       </View>
     </ScrollView>
   );

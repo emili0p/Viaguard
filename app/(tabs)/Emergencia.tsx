@@ -74,7 +74,7 @@ const QuickCard: React.FC<QuickCardProps> = ({
 const EmergencyScreen: React.FC = () => {
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [loadingLocation, setLoadingLocation] = useState<boolean>(false);
-  const [contactNumber, setContactNumber] = useState<string>("+34123456789");
+  const [contactNumber, setContactNumber] = useState<string>("+911");
   const [recentReports, setRecentReports] = useState<EmergencyReport[]>([]);
   const [sending, setSending] = useState<boolean>(false);
 
