@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard MongoDB</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard en Tiempo Real</h1>
+        
+        <div class="charts-container">
+            <div class="chart-card">
+                <h2>Temperatura</h2>
+                <canvas id="temperatureChart"></canvas>
+            </div>
+            
+            <div class="chart-card">
+                <h2>Ventas</h2>
+                <canvas id="salesChart"></canvas>
+            </div>
+            
+            <div class="chart-card">
+                <h2>Usuarios</h2>
+                <canvas id="usersChart"></canvas>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="addRandomData()">Agregar Datos de Prueba</button>
+            <button onclick="startAutoUpdate()">Actualización Automática</button>
+            <button onclick="stopAutoUpdate()">Detener Actualización</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de gráficos
+        const charts = {
+            temperature: createChart('temperatureChart', 'Temperatura (°C)', 'rgba(255, 99, 132, 0.2)'),
+            sales: createChart('salesChart', 'Ventas ($)', 'rgba(54, 162, 235, 0.2)'),
+            users: createChart('usersChart', 'Usuarios', 'rgba(75, 192, 192, 0.2)')
+        };
+
+        let autoUpdateInterval;
+
+        function createChart(canvasId, label, backgroundColor) {
+            return new Chart(document.getElementById(canvasId), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        backgroundColor: backgroundColor,
+                        borderColor: backgroundColor.replace('0.2', '1'),
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: {
+                        duration: 1000
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Cargar datos iniciales
+        async function loadInitialData() {
+            const metrics = ['temperature', 'sales', 'users'];
+            
+            for (const metric of metrics) {
+                const response = await fetch(`/api/data/${metric}`);
+                const data = await response.json();
+                updateChart(metric, data);
+            }
+        }
+
+        function updateChart(metric, data) {
+            const chart = charts[metric];
+            chart.data.labels = data.map(item => 
+                new Date(item.timestamp).toLocaleTimeString()
+            );
+            chart.data.datasets[0].data = data.map(item => item.value);
+            chart.update();
+        }
+
+        // Funciones de control
+        async function addRandomData() {
+            await fetch('/api/seed', { method: 'POST' });
+            loadInitialData();
+        }
+
+        function startAutoUpdate() {
+            stopAutoUpdate();
+            autoUpdateInterval = setInterval(loadInitialData, 5000);
+        }
+
+        function stopAutoUpdate() {
+            clearInterval(autoUpdateInterval);
+        }
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialData();
+            startAutoUpdate();
+        });
+    </script>
+</body>
+</html>
